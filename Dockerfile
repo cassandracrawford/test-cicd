@@ -1,10 +1,21 @@
-FROM node:lts-alpine
-ENV NODE_ENV=production
+FROM node:20-alpine
 WORKDIR /usr/src/app
-COPY ["package.json", "package-lock.json*", "npm-shrinkwrap.json*", "./"]
-RUN npm install --production --silent && mv node_modules ../
+
+# Install all deps (need devDeps to build)
+COPY package*.json ./
+RUN npm ci
+
+# Copy source and build
 COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# (Optional) Trim dev deps from the final image
+RUN npm prune --omit=dev
+
+ENV NODE_ENV=production
+ENV PORT=3000
 EXPOSE 3000
-RUN chown -R node /usr/src/app
-USER node
+
+# requires "start": "next start -p 3000"
 CMD ["npm", "start"]

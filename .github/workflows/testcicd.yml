@@ -3,43 +3,36 @@ name: CI/CD (Docker, Next.js)
 on:
   push:
     branches: ["main"]
-  pull_request:
-    branches: ["main"]
 
 permissions:
   contents: read
   packages: write
 
 env:
-  IMAGE_OWNER: ${{ github.repository_owner }}
-  IMAGE_NAME:  ${{ github.event.repository.name }}
-  IMAGE_TAG_LATEST: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
-  IMAGE_TAG_SHA:    ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.sha }}
-  GHCR_PAT_ENV: ${{ secrets.GHCR_PAT }}  # <-- expose secret to env so we can test it in `if`
+  OWNER: ${{ github.repository_owner }}
+  REPO:  ${{ github.event.repository.name }}
+  TAG_LATEST: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
+  TAG_SHA:    ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.sha }}
 
 jobs:
   build-and-push:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR (GITHUB_TOKEN)
+      - name: Login to GHCR (PAT)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ env.OWNER }}           # e.g., cassandracrawford
+          password: ${{ secrets.GHCR_PAT }}    # PAT with write:packages
 
-      # Only run this step if GHCR_PAT is set (non-empty)
-      - name: (Optional) Log in to GHCR with PAT (override)
-        if: env.GHCR_PAT_ENV != ''
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ env.GHCR_PAT_ENV }}
+      - name: Show target (debug)
+        run: |
+          echo "Pushing to:"
+          echo "  ${{ env.TAG_LATEST }}"
+          echo "  ${{ env.TAG_SHA }}"
 
       - name: Build & push
         uses: docker/build-push-action@v6
@@ -47,7 +40,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE_TAG_LATEST }}
-            ${{ env.IMAGE_TAG_SHA }}
+            ${{ env.TAG_LATEST }}
+            ${{ env.TAG_SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
